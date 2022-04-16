@@ -1026,29 +1026,31 @@ def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, 
                 bb.error("SState: cannot test %s: %s\n%s" % (srcuri, repr(e), traceback.format_exc()))
 
             if progress:
-                bb.event.fire(bb.event.ProcessProgress(msg, len(tasklist) - thread_worker.tasks.qsize()), d)
+                tasks.remove(arg)
+                bb.event.fire(bb.event.ProcessProgress(msg, total_tasks - len(tasks)), d)
 
-        tasklist = []
+        tasks = LockedSet()
         for tid in missed:
             sstatefile = d.expand(getsstatefile(tid, siginfo, d))
-            tasklist.append((tid, sstatefile))
+            tasks.add((tid, sstatefile))
 
-        if tasklist:
-            nproc = min(int(d.getVar("BB_NUMBER_THREADS")), len(tasklist))
+        total_tasks = len(tasks)
+        if total_tasks:
+            nproc = min(int(d.getVar("BB_NUMBER_THREADS")), total_tasks)
 
-            progress = len(tasklist) >= 100
+            progress = total_tasks >= 100
             if progress:
                 msg = "Checking sstate mirror object availability"
-                bb.event.fire(bb.event.ProcessStarted(msg, len(tasklist)), d)
+                bb.event.fire(bb.event.ProcessStarted(msg, total_tasks), d)
 
             # Have to setup the fetcher environment here rather than in each thread as it would race
             fetcherenv = bb.fetch2.get_fetcher_environment(d)
             with bb.utils.environment(**fetcherenv):
                 bb.event.enable_threadlock()
-                pool = oe.utils.ThreadedPool(nproc, len(tasklist),
+                pool = oe.utils.ThreadedPool(nproc, total_tasks,
                         worker_init=checkstatus_init, worker_end=checkstatus_end,
                         name="sstate_checkhashes-")
-                for t in tasklist:
+                for t in tasks:
                     pool.add_task(checkstatus, t)
                 pool.start()
                 pool.wait_completion()
