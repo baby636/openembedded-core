@@ -918,8 +918,28 @@ sstate_unpack_package () {
 BB_HASHCHECK_FUNCTION = "sstate_checkhashes"
 
 def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, **kwargs):
-    found = set()
-    missed = set()
+    # https://stackoverflow.com/questions/13610654/how-to-make-built-in-containers-sets-dicts-lists-thread-safe
+    import threading
+    class LockedSet(set):
+        """A set where add(), remove(), and 'in' operator are thread-safe"""
+        def __init__(self, *args, **kwargs):
+            self._lock = threading.Lock()
+            super(LockedSet, self).__init__(*args, **kwargs)
+
+        def add(self, elem):
+            with self._lock:
+                super(LockedSet, self).add(elem)
+
+        def remove(self, elem):
+            with self._lock:
+                super(LockedSet, self).remove(elem)
+
+        def __contains__(self, elem):
+            with self._lock:
+                super(LockedSet, self).__contains__(elem)
+
+    found = LockedSet()
+    missed = LockedSet()
 
     def gethash(task):
         return sq_data['unihash'][task]
