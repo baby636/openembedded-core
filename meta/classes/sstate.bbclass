@@ -1058,7 +1058,7 @@ def sstate_checkhashes(sq_data, d, siginfo=False, currentcount=0, summary=True, 
                 connection_cache_pool = Queue(nproc)
                 checkstatus_init()
                 with concurrent.futures.ThreadPoolExecutor(max_workers=nproc) as executor:
-                    executor.map(checkstatus, tasks)
+                    executor.map(checkstatus, tasks.copy())
                 checkstatus_end()
                 bb.event.disable_threadlock()
 
